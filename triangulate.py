@@ -168,12 +168,11 @@ def learn(scale, num_triangles, img):
 
     optimizer = torch.optim.SGD([
         {'params': positions, 'lr': 0.01},
-        {'params': colors, 'lr': 0.00001}
+        {'params': colors, 'lr': 0.0001}
     ])
 
 
     console = Console()
-    save(target[x_grid_full, y_grid_full] , "target1.png")
 
     try:
         with console.status("Booting") as status:
@@ -194,7 +193,7 @@ def learn(scale, num_triangles, img):
                 loss.backward()
                 optimizer.step()
 
-                if t % 100 == 0:
+                if t % 10 == 0:
                     candidate = render_triangles(triangles, x_grid_full, y_grid_full)
                     save(candidate)
                     print(loss_value)
@@ -202,8 +201,8 @@ def learn(scale, num_triangles, img):
                     optimizer.zero_grad()
 
     except KeyboardInterrupt:
+        candidate = render_triangles(triangles, x_grid_full, y_grid_full)
         save(candidate)
-        save(target[x_grid, y_grid] , "target.png")
 
 
 import fire
