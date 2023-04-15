@@ -6,6 +6,7 @@ import cv2
 from rich.console import Console
 import einops
 import numpy as np
+import wandb
 
 # TODO
 # fix render triangles to support 2-d meshgrid and subsampling
@@ -149,7 +150,7 @@ def test_one_triangle_blend():
     assert np.allclose(generated, target, rtol=0.01, atol=0.01)
 
 
-def learn(scale, num_triangles, img):
+def learn(scale, num_triangles, img, target_name, position_lr, color_lr):
     width = int(img.shape[1] * scale)
     height = int(img.shape[0] * scale)
     dim = (width, height)
@@ -167,9 +168,22 @@ def learn(scale, num_triangles, img):
     positions, colors = random_triangles(num_triangles, x_size, y_size)
 
     optimizer = torch.optim.SGD([
-        {'params': positions, 'lr': 0.01},
-        {'params': colors, 'lr': 0.0001}
+        {'params': positions, 'lr': position_lr},
+        {'params': colors, 'lr': color_lr}
     ])
+
+    wandb.init(
+        # set the wandb project where this run will be logged
+        project="relisa",
+
+        # track hyperparameters and run metadata
+        config={
+        "position_lr": position_lr,
+        "color_lr": color_lr,
+        "optimizer": str(optimizer.__class__.__name__),
+        "num_triangles": num_triangles,
+        "target": target_name,
+    })
 
 
     console = Console()
@@ -192,17 +206,19 @@ def learn(scale, num_triangles, img):
                 optimizer.zero_grad()
                 loss.backward()
                 optimizer.step()
-
+                wandb.log({"loss": loss})
                 if t % 10 == 0:
                     candidate = render_triangles(triangles, x_grid_full, y_grid_full)
-                    save(candidate)
+                    save(candidate, "log.png")
+                    wandb.log({"example": wandb.Image("log.png")})
                     print(loss_value)
                     status.update(f"Iteration: {t} Loss: {loss_value}")
                     optimizer.zero_grad()
 
-    except KeyboardInterrupt:
+    finally:
         candidate = render_triangles(triangles, x_grid_full, y_grid_full)
         save(candidate)
+        wandb.finish()
 
 
 import fire
@@ -210,12 +226,13 @@ import fire
 class Trainer(object):
     """A simple calculator class."""
 
-    def learn(self, scale, num_triangles, target_image=None):
+    def learn(self, scale, num_triangles, target_image=None, position_lr=0.01, color_lr=0.0001):
         if target_image is None:
             target = sp.misc.face()
+            target_image = "__face__"
         else:
             target = plt.imread(target_image)[:, :, :3]
-        learn(scale, num_triangles, target)
+        learn(scale, num_triangles, target, target_name=target_image, position_lr=position_lr, color_lr=color_lr)
 
 
 if __name__ == '__main__':
